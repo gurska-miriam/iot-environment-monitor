@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamické Grafy</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=DM+Sans:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* ─── ZÁKLADNÉ FARBY A ŠTÝLY ─── */
+        :root { 
+            --bg: #05080c; 
+            --surface: #0c121d; 
+            --surface-2: #141e2e;
+            --border: rgba(255,255,255,0.07); 
+            --temp: #38d9f5; 
+            --text: #e8eef7; 
+            --muted: #5c708d;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: row; overflow: hidden; }
+        
+        /* ─── SIDEBAR ─── */
+        .sidebar {
+            width: 80px; 
+            background: var(--surface); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 25px 0; z-index: 10; gap: 20px; flex-shrink: 0;
+        }
+        .nav-btn { 
+            background: none; border: none; color: var(--muted); font-size: 24px; 
+            cursor: pointer; opacity: 0.5; transition: 0.2s; 
+            width: 100%; text-align: center; display: block; 
+        }
+        .nav-btn:hover { opacity: 0.8; }
+        
+        /* Ikona domu prebrala štýl hlavného svietiaceho tlačidla */
+        .nav-btn-main {
+            font-size: 42px !important; 
+            opacity: 0.95 !important;   
+            filter: drop-shadow(0 0 12px rgba(56, 217, 245, 0.4)); 
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .nav-btn-main:hover {
+            transform: scale(1.1); 
+            filter: drop-shadow(0 0 18px rgba(56, 217, 245, 0.7));
+        }
+
+        .spacer { flex: 1; }
+        
+        /* ─── HLAVNÁ ČASŤ ─── */
+        .main-content {
+            flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+        }
+
+        /* ─── HORNÁ LIŠTA S OVLÁDANÍM ─── */
+        .topbar { background: var(--surface); padding: 15px 30px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; }
+        
+        .time-controls { display: flex; align-items: center; gap: 10px; }
+        .time-label { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+        
+        #timeRangeMenu { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 8px; outline: none; font-family: 'JetBrains Mono', monospace; cursor: pointer; min-width: 150px; }
+        #timeRangeMenu:focus { border-color: var(--temp); }
+        
+        #customTimeInputs { display: none; gap: 5px; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; height: 100%; }
+        #customTimeInputs input { background: transparent; color: var(--text); border: none; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; outline: none; cursor: pointer; color-scheme: dark;}
+        .btn-apply-time { background: var(--temp); color: #000; border: none; border-radius: 5px; font-size: 0.8rem; padding: 4px 10px; cursor: pointer; font-weight: bold; }
+        .btn-apply-time:hover { filter: brightness(1.2); }
+
+        .controls { display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2); padding: 5px 15px; border-radius: 12px; border: 1px solid var(--border); }
+        select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 8px; outline: none; font-family: 'JetBrains Mono', monospace; cursor: pointer; min-width: 150px; }
+        select:focus { border-color: var(--temp); }
+        
+        button#btnPridat { background: var(--temp); color: #000; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-family: 'DM Sans', sans-serif;}
+        button#btnPridat:hover { filter: brightness(1.2); transform: scale(1.02); }
+        button#btnPridat:disabled { filter: grayscale(1); opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* ─── MRIEŽKA PRE GRAFY ─── */
+        .graphs-grid { flex: 1; padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; overflow-y: auto; align-content: start; }
+        
+        /* ─── JEDNOTLIVÁ KARTA S GRAFOM ─── */
+        .graph-card { background: #000; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; height: 350px; display: flex; flex-direction: column; animation: fadeIn 0.3s ease-out; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .card-header { background: var(--surface); padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--temp); }
+        .card-title { font-weight: bold; letter-spacing: 0.05em; }
+        .btn-close { background: transparent; color: var(--muted); border: none; font-size: 1.2rem; cursor: pointer; padding: 0 5px; transition: 0.2s; }
+        .btn-close:hover { color: #f56565; transform: scale(1.1); }
+
+        .iframe-wrap { position: relative; flex: 1; }
+        .iframe-wrap iframe { width: 100%; height: 100%; border: none; }
+        .iframe-shield { position: absolute; inset: 0; z-index: 5; background: transparent; }
+        .graph-card:hover .iframe-shield { pointer-events: none; }
+
+        .empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--muted); font-family: 'JetBrains Mono', monospace; text-align: center; line-height: 1.5; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <a href="kiosk.html" class="nav-btn nav-btn-main" style="text-decoration: none;" title="Domov">🏡</a>
+        <div class="spacer"></div>
+    </nav>
+
+    <main class="main-content">
+        <div class="topbar">
+            <div class="time-controls">
+                <span class="time-label">Časový úsek:</span>
+                <select id="timeRangeMenu" onchange="handleTimeChange()">
+                    <option value="now-15m">Posledných 15 minút</option>
+                    <option value="now-1h">Posledná hodina</option>
+                    <option value="now-3h" selected>Posledné 3 hodiny</option>
+                    <option value="now-12h">Posledných 12 hodín</option>
+                    <option value="now-24h">Posledných 24 hodín</option>
+                    <option value="now-2d">Posledné 2 dni</option>
+                    <option value="custom">Vlastný čas (Od - Do)...</option>
+                </select>
+                
+                <div id="customTimeInputs">
+                    <input type="datetime-local" id="customTimeFrom">
+                    <span style="color: var(--muted);">-</span>
+                    <input type="datetime-local" id="customTimeTo">
+                    <button class="btn-apply-time" onclick="applyCustomTime()">OK</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <select id="zariadenieMenu" onchange="aktualizujVeliciny()">
+                    <option value="" disabled selected>Načítavam API...</option>
+                </select>
+                
+                <select id="velicinaMenu" disabled>
+                    <option value="" disabled selected>Najprv zvoľ zariadenie</option>
+                </select>
+                
+                <button id="btnPridat" onclick="pridajGraf()" disabled>+ Pridať graf</button>
+            </div>
+        </div>
+
+        <div class="graphs-grid" id="plochaPreGrafy">
+            <div class="empty-state" id="emptyStateMsg">
+                <strong>Žiadne grafy na zobrazenie</strong><br>
+                Vyberte zariadenie a veličinu a kliknite na "Pridať graf"
+            </div>
+        </div>
+    </main>
+
+<script>
+    const konfiguraciaSenzorov = {
+        "rpi_station": [
+            { field: "temperature", label: "Teplota", measurement: "temperature_humidity" },
+            { field: "humidity", label: "Vlhkosť", measurement: "temperature_humidity" },
+            { field: "voc_ppm", label: "Kvalita vzduchu (TVOC)", measurement: "air_quality" }
+        ],
+        "wio_terminal": [
+            { field: "temperature", label: "Teplota", measurement: "temperature_humidity" },
+            { field: "humidity", label: "Vlhkosť", measurement: "temperature_humidity" },
+            { field: "dust_ug_m3", label: "Prach (PM)", measurement: "air_quality" } 
+        ]
+    };
+
+    let customFromMs = null;
+    let customToMs = null;
+
+    // 1. Načítanie zariadení
+    async function nacitajZariadeniaZDatabazy() {
+        const menuZar = document.getElementById('zariadenieMenu');
+        try {
+            const response = await fetch('http://localhost:1880/api/locations');
+            const dostupneZariadenia = await response.json();
+            
+            menuZar.innerHTML = '<option value="" disabled selected>Vyberte zariadenie...</option>';
+            dostupneZariadenia.forEach(zariadenie => {
+                const moznost = document.createElement('option');
+                moznost.value = zariadenie;
+                moznost.textContent = zariadenie.toUpperCase();
+                menuZar.appendChild(moznost);
+            });
+        } catch (error) {
+            menuZar.innerHTML = '<option disabled selected>Chyba API spojenia</option>';
+        }
+    }
+
+    // 2. Kaskádové filtrovanie veličín
+    function aktualizujVeliciny() {
+        const vybraneZar = document.getElementById('zariadenieMenu').value;
+        const menuVel = document.getElementById('velicinaMenu');
+        const btnPridat = document.getElementById('btnPridat');
+        
+        menuVel.innerHTML = ""; 
+        
+        if (konfiguraciaSenzorov[vybraneZar]) {
+            konfiguraciaSenzorov[vybraneZar].forEach(senzor => {
+                const moznost = document.createElement('option');
+                moznost.value = senzor.field;
+                moznost.textContent = senzor.label;
+                moznost.dataset.measurement = senzor.measurement; 
+                menuVel.appendChild(moznost);
+            });
+            menuVel.disabled = false;
+            btnPridat.disabled = false;
+        } else {
+            menuVel.innerHTML = '<option disabled selected>Neznáme zariadenie</option>';
+            menuVel.disabled = true;
+            btnPridat.disabled = true;
+        }
+    }
+
+    // 3. Obsluha zmeny času
+    function handleTimeChange() {
+        const selector = document.getElementById('timeRangeMenu');
+        const customInputs = document.getElementById('customTimeInputs');
+        
+        if (selector.value === 'custom') { 
+            customInputs.style.display = 'flex'; 
+        } else { 
+            customInputs.style.display = 'none'; 
+            aktualizujCasGlobal(selector.value, 'now'); 
+        }
+    }
+
+    // 4. Aplikovanie vlastného času
+    function applyCustomTime() {
+        const fVal = document.getElementById('customTimeFrom').value;
+        const tVal = document.getElementById('customTimeTo').value;
+        
+        if (!fVal || !tVal) { alert("Vyplňte oba časy (Od aj Do)."); return; }
+        
+        const fMs = new Date(fVal).getTime();
+        const tMs = new Date(tVal).getTime();
+        
+        if (fMs >= tMs) { alert("Čas 'Od' must be skôr ako 'Do'."); return; }
+        
+        customFromMs = fMs;
+        customToMs = tMs;
+        
+        aktualizujCasGlobal(fMs, tMs);
+    }
+
+    // 5. Zmena parametrov v URL už existujúcich grafov
+    function aktualizujCasGlobal(fromTime, toTime) {
+        const vsetkyIframy = document.querySelectorAll('.graph-card iframe');
+        vsetkyIframy.forEach(iframe => {
+            const url = new URL(iframe.src);
+            url.searchParams.set('from', fromTime);
+            url.searchParams.set('to', toTime);
+            iframe.src = url.toString(); 
+        });
+    }
+
+    // 6. Pridanie nového grafu
+    function pridajGraf() {
+        const menuZar = document.getElementById('zariadenieMenu');
+        const menuVel = document.getElementById('velicinaMenu');
+        const menuCas = document.getElementById('timeRangeMenu');
+        
+        const vybraneZar = menuZar.value;
+        const textZar = menuZar.options[menuZar.selectedIndex].text;
+        
+        const vybranaVelicina = menuVel.value;
+        const vybranyMeasurement = menuVel.options[menuVel.selectedIndex].dataset.measurement;
+        const textVelicina = menuVel.options[menuVel.selectedIndex].text;
+
+        let vybranyFrom = menuCas.value;
+        let vybranyTo = 'now';
+        
+        if (vybranyFrom === 'custom') {
+            if (!customFromMs || !customToMs) {
+                alert("Najprv potvrďte vlastný čas tlačidlom OK.");
+                return;
+            }
+            vybranyFrom = customFromMs;
+            vybranyTo = customToMs;
+        }
+
+        document.getElementById('emptyStateMsg').style.display = 'none';
+
+        const baseUrl = "http://localhost:3000/d-solo/adc92k8/iot-monitoring";
+        const grafanaUrl = `${baseUrl}?orgId=1&theme=dark&kiosk&timezone=browser&var-location=${vybraneZar}&var-measurement=${vybranyMeasurement}&var-field=${vybranaVelicina}&panelId=7&__feature.dashboardScene=true&from=${vybranyFrom}&to=${vybranyTo}`;
+        
+        const plocha = document.getElementById('plochaPreGrafy');
+        const novaKarta = document.createElement('div');
+        novaKarta.className = 'graph-card';
+        
+        novaKarta.innerHTML = `
+            <div class="card-header">
+                <span class="card-title">${textZar} • ${textVelicina}</span>
+                <button class="btn-close" onclick="odstranGraf(this)" title="Zatvoriť graf">✖</button>
+            </div>
+            <div class="iframe-wrap">
+                <div class="iframe-shield"></div>
+                <iframe src="${grafanaUrl}" loading="lazy"></iframe>
+            </div>
+        `;
+        
+        plocha.prepend(novaKarta);
+    }
+
+    // 7. Odstránenie grafu
+    function odstranGraf(tlacidlo) {
+        tlacidlo.parentElement.parentElement.remove();
+        if (document.querySelectorAll('.graph-card').length === 0) {
+            document.getElementById('emptyStateMsg').style.display = 'block';
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', nacitajZariadeniaZDatabazy);
+</script>
+</body>
+</html>
