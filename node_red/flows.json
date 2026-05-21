@@ -1,0 +1,406 @@
+[
+    {
+        "id": "61ad0e0b83ea0491",
+        "type": "tab",
+        "label": "Meteostanica Flow",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "9d239a6a8b2c404c",
+        "type": "telegram receiver",
+        "z": "61ad0e0b83ea0491",
+        "name": "Prijímač správ",
+        "bot": "48edadee86347be7",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "hasinput": false,
+        "inputs": 0,
+        "handleallupdates": false,
+        "handleprocessupdates": false,
+        "x": 110,
+        "y": 140,
+        "wires": [
+            [
+                "65af10c096c34ee7"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "65af10c096c34ee7",
+        "type": "switch",
+        "z": "61ad0e0b83ea0491",
+        "name": "Overenie Chat ID",
+        "property": "payload.chatId",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "YOUR_CHAT_ID_HERE",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 310,
+        "y": 120,
+        "wires": [
+            [
+                "094b1944623182bb",
+                "func_spracovanie_stav",
+                "453613a903d61a6f"
+            ]
+        ]
+    },
+    {
+        "id": "094b1944623182bb",
+        "type": "function",
+        "z": "61ad0e0b83ea0491",
+        "name": "Spracovanie /limit",
+        "func": "var text = msg.payload.content;\nvar chatId = msg.payload.chatId;\n\nif (text.startsWith(\"/limit \")) {\n    var casti = text.split(\" \");\n    \n    if (casti.length < 4) {\n        return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ Nesprávny formát!\\nPošli /pomoc pre zobrazenie nápovedy.\" } }, null];\n    }\n\n    var zariadenie = casti[1].toLowerCase();\n    var velicina = casti[2].toLowerCase(); \n    \n    var rozsahoveVeliciny = [\"teplota\", \"vlhkost\", \"prach\", \"voc\"];\n    var jednociselneVeliciny = [\"tmin\", \"tmax\", \"hmin\", \"hmax\", \"pmax\"];\n    var povoleneVeliciny = rozsahoveVeliciny.concat(jednociselneVeliciny);\n    \n    if (!povoleneVeliciny.includes(velicina)) {\n        return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ Neznáma veličina!\\nPošli /pomoc pre zoznam veličín.\" } }, null];\n    }\n\n    // ─── NOVÁ POISTKA: Zakázať jednocíselné veličiny pre RPi ───\n    if (zariadenie === \"rpi\" && jednociselneVeliciny.includes(velicina)) {\n        return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ Tieto hardvérové limity (tmin, tmax...) fungujú iba pre Wio Terminal!\\nPre RPi použi rozmedzie, napr.: /limit rpi teplota 20 28\" } }, null];\n    }\n    // ───────────────────────────────────────────────────────────\n\n    var hodnoty = \"\";\n    var apiVelicina = velicina; \n\n    if (rozsahoveVeliciny.includes(velicina)) {\n        if (casti.length !== 5) {\n            return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ \" + velicina.toUpperCase() + \" vyžaduje rozsah dvoch čísel (MIN a MAX).\\nPríklad: /limit \" + zariadenie + \" \" + velicina + \" 20 28\" } }, null];\n        }\n        var hodnota1 = parseFloat(casti[3]);\n        var hodnota2 = parseFloat(casti[4]);\n        \n        if (isNaN(hodnota1) || isNaN(hodnota2)) {\n            return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ Limity musia byť čísla!\" } }, null];\n        }\n        \n        if (hodnota1 > hodnota2) {\n            hodnoty = hodnota2 + \" \" + hodnota1;\n        } else {\n            hodnoty = hodnota1 + \" \" + hodnota2;\n        }\n    } \n    else if (jednociselneVeliciny.includes(velicina)) {\n        if (casti.length !== 4) {\n            return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ Pre \" + velicina.toUpperCase() + \" zadaj iba jedno číslo.\\nPríklad: /limit \" + zariadenie + \" \" + velicina + \" 15\" } }, null];\n        }\n        var hodnota = parseFloat(casti[3]);\n        if (isNaN(hodnota)) {\n            return [null, { payload: { chatId: chatId, type: 'message', content: \"❌ Hodnota musí byť číslo!\" } }, null];\n        }\n        hodnoty = hodnota.toString();\n    }\n\n    if (velicina === \"tmin\") velicina = \"tMin\";\n    if (velicina === \"tmax\") velicina = \"tMax\";\n    if (velicina === \"hmin\") velicina = \"hMin\";\n    if (velicina === \"hmax\") velicina = \"hMax\";\n    if (velicina === \"pmax\") velicina = \"pMax\";\n\n    flow.set(zariadenie + \"_limit_\" + apiVelicina, hodnoty);\n\n    var mqttTopic = \"uzol/\" + zariadenie + \"/limit/\" + velicina;\n    var msgPreMQTT = { topic: mqttTopic, payload: hodnoty };\n    var msgPreTelegram = {\n        payload: {\n            chatId: chatId,\n            type: 'message',\n            content: \"✅ Limity spracované pre \" + zariadenie.toUpperCase() + \"\\nNastavené: \" + hodnoty.replace(\" \", \" až \")\n        }\n    };\n\n    var webHodnota = hodnoty.replace(\" \", \" - \"); \n    var msgPreAPI = {\n        payload: { \"key\": zariadenie + \"_\" + apiVelicina, \"value\": webHodnota }\n    };\n\n    return [msgPreMQTT, msgPreTelegram, msgPreAPI];\n}\n\nreturn [null, null, null];",
+        "outputs": 3,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 160,
+        "wires": [
+            [
+                "1cea04b96351957d"
+            ],
+            [
+                "987bf2b990056fc0"
+            ],
+            [
+                "62692f5fe7151707"
+            ]
+        ]
+    },
+    {
+        "id": "1cea04b96351957d",
+        "type": "mqtt out",
+        "z": "61ad0e0b83ea0491",
+        "name": "MQTT Limit Out",
+        "topic": "",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "ccd2775b1a7d525b",
+        "x": 820,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "987bf2b990056fc0",
+        "type": "telegram sender",
+        "z": "61ad0e0b83ea0491",
+        "name": "Odpoveď Bot",
+        "bot": "48edadee86347be7",
+        "outputs": 1,
+        "x": 810,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "mqtt_upozornenie_in",
+        "type": "mqtt in",
+        "z": "61ad0e0b83ea0491",
+        "name": "Príjem upozornení",
+        "topic": "uzol/+/upozornenie",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "ccd2775b1a7d525b",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 310,
+        "y": 220,
+        "wires": [
+            [
+                "func_format_upozornenie"
+            ]
+        ]
+    },
+    {
+        "id": "func_format_upozornenie",
+        "type": "function",
+        "z": "61ad0e0b83ea0491",
+        "name": "Príprava pre Telegram",
+        "func": "var textUpozornenia = msg.payload;\nvar tema = msg.topic; // napr. \"uzol/wio/upozornenie\"\n\n// ── EXTRAKCIA ZARIADENIA Z MQTT TÉMY ──\nvar castiTemy = tema.split('/');\nvar zariadenie = \"NEZNÁME\";\n\nif (castiTemy.length >= 2) {\n    zariadenie = castiTemy[1].toUpperCase(); // Vytiahne \"WIO\" alebo \"RPI\"\n}\n\n// ── ÚPRAVA TEXTU SPRÁVY ──\nvar naformatovanaSprava = \"[\" + zariadenie + \"] \" + textUpozornenia;\n\n\nmsg.payload = {\n    chatId: \"YOUR_CHAT_ID_HERE\", \n    type: \"message\",\n    content: naformatovanaSprava\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 220,
+        "wires": [
+            [
+                "987bf2b990056fc0"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_hodnoty_in",
+        "type": "mqtt in",
+        "z": "61ad0e0b83ea0491",
+        "name": "Príjem dát",
+        "topic": "uzol/+/+",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "ccd2775b1a7d525b",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 340,
+        "y": 280,
+        "wires": [
+            [
+                "func_uloz_hodnoty"
+            ]
+        ]
+    },
+    {
+        "id": "func_uloz_hodnoty",
+        "type": "function",
+        "z": "61ad0e0b83ea0491",
+        "name": "Uloženie do pamäte",
+        "func": "// Rozdelíme tému, napr. \"uzol/rpi/teplota\"\nvar casti = msg.topic.split('/');\nif (casti.length !== 3) return null;\n\nvar zariadenie = casti[1];\nvar velicina = casti[2];\nvar hodnota = parseFloat(msg.payload);\n\nif (isNaN(hodnota)) return null;\n\n// ─── 1. ULOŽENIE DO PAMÄTE (Pre API a príkazy /stav) ───\nflow.set(zariadenie + '_' + velicina, hodnota);\n\n// ─── 2. KONTROLA LIMITOV IBA PRE RPi ───\n// (Wio Terminal si to kontroluje sám a posiela hotové upozornenia)\nif (zariadenie === 'rpi') {\n    var predvoleneLimity = {\n        \"teplota\": \"20 28\",\n        \"vlhkost\": \"40 60\",\n        \"voc\": \"0 500\"\n    };\n    \n    // Vezmeme limit z Telegramu, alebo použijeme predvolený\n    var limityText = flow.get(\"rpi_limit_\" + velicina) || predvoleneLimity[velicina];\n    \n    if (limityText) {\n        var limityCasti = limityText.split(\" \");\n        if (limityCasti.length === 2) {\n            var minLimit = parseFloat(limityCasti[0]);\n            var maxLimit = parseFloat(limityCasti[1]);\n            \n            // Spam-poistka (aby ti nechodilo 100 správ za minútu)\n            var stavUpozorneniaKey = \"rpi_alert_\" + velicina;\n            var uzJeUpozornene = flow.get(stavUpozorneniaKey) || false;\n            var textSpravy = null;\n\n            if (hodnota > maxLimit) {\n                if (!uzJeUpozornene) { // Poslať poplach, len ak sme ho ešte neposlali\n                    textSpravy = \"🚨 UPOZORNENIE!\\nRPi prekročilo maximálny limit pre \" + velicina.toUpperCase() + \"!\\nAktuálna hodnota: \" + hodnota + \" (Max: \" + maxLimit + \")\";\n                    flow.set(stavUpozorneniaKey, true);\n                }\n            } else if (hodnota < minLimit) {\n                if (!uzJeUpozornene) {\n                    textSpravy = \"🚨 UPOZORNENIE!\\nRPi kleslo pod minimálny limit pre \" + velicina.toUpperCase() + \"!\\nAktuálna hodnota: \" + hodnota + \" (Min: \" + minLimit + \")\";\n                    flow.set(stavUpozorneniaKey, true);\n                }\n            } else {\n                // Hodnota sa vrátila do normálu medzi MIN a MAX\n                if (uzJeUpozornene) {\n                    textSpravy = \"✅ HODNOTA V NORME\\nRPi (\" + velicina.toUpperCase() + \") sa vrátilo do normálu.\\nAktuálna hodnota: \" + hodnota;\n                    flow.set(stavUpozorneniaKey, false); // Odblokujeme poistku\n                }\n            }\n\n            // Ak máme vytvorenú správu, odošleme ju botovi\n            if (textSpravy) {\n                return {\n                    payload: {\n                        chatId: \"YOUR_CHAT_ID_HERE\", // Nahraď dané Chat ID z predchádzajúceho overenia\n                        type: 'message',\n                        content: textSpravy\n                    }\n                };\n            }\n        }\n    }\n}\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 280,
+        "wires": [
+            [
+                "987bf2b990056fc0"
+            ]
+        ]
+    },
+    {
+        "id": "func_spracovanie_stav",
+        "type": "function",
+        "z": "61ad0e0b83ea0491",
+        "name": "Spracovanie /stav",
+        "func": "var text = msg.payload.content;\nvar chatId = msg.payload.chatId;\n\nif (text.startsWith('/stav ')) {\n    var zariadenie = text.split(' ')[1].toLowerCase(); \n    \n    // ── KONTROLA EXISTENCIE ZARIADENIA ──\n    var povoleneZariadenia = ['rpi', 'wio'];\n    if (!povoleneZariadenia.includes(zariadenie)) {\n        return {\n            payload: {\n                chatId: chatId,\n                type: 'message',\n                content: \"❌ Neznáme zariadenie '\" + zariadenie + \"'!\\nPošli /pomoc pre zoznam dostupných zariadení a príkazov.\"\n            }\n        };\n    }\n    // ────────────────────────────────────\n    \n    var t = parseFloat(flow.get(zariadenie + '_teplota'));\n    var h = parseFloat(flow.get(zariadenie + '_vlhkost'));\n    var p = flow.get(zariadenie + '_prach'); \n    var v = flow.get(zariadenie + '_voc');\n\n    // ── MATEMATICKÝ MODEL KOMFORTU (Z grafu) ──\n    function zistiKomfort(temp, hum) {\n        if (isNaN(temp) || isNaN(hum)) return \"Neznámy (chýbajú dáta)\";\n\n        // Súradnice [Teplota, Vlhkosť] odčítané z grafu\n        var zameriavanie_komfort = [[19.0, 74.0], [23.5, 68.0], [25.8, 35.0], [20.0, 37.0]];\n        var zameriavanie_moderate = [[18.2, 80.0], [24.5, 75.0], [27.2, 31.0], [25.8, 18.0], [21.5, 19.0], [18.5, 28.0], [16.8, 62.0]];\n\n        // Algoritmus Point-in-Polygon (Ray Casting)\n        function jeVoVnutri(point, polygon) {\n            var x = point[0], y = point[1];\n            var voVnutri = false;\n            for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {\n                var xi = polygon[i][0], yi = polygon[i][1];\n                var xj = polygon[j][0], yj = polygon[j][1];\n                var presek = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);\n                if (presek) voVnutri = !voVnutri;\n            }\n            return voVnutri;\n        }\n\n        // Vyhodnotenie zón\n        if (jeVoVnutri([temp, hum], zameriavanie_komfort)) return \"Komfortné\";\n        if (jeVoVnutri([temp, hum], zameriavanie_moderate)) return \"Prijateľné\";\n\n        // Ak je bod mimo polygónov, určíme prečo je to nepríjemné\n        if (hum > 75) return \"Nepríjemné - Príliš vlhko\";\n        if (hum < 20) return \"Nepríjemné - Príliš sucho\";\n        if (temp < 18) return \"Nepríjemné - Chladno\";\n        return \"Nepríjemné - Horúco\";\n    }\n\n    // Vypočítame aktuálny komfort\n    var stavKomfortu = zistiKomfort(t, h);\n\n    // Ošetrenie textu pre zobrazenie (ak dáta ešte nedorazili)\n    var t_str = isNaN(t) ? \"? (čakám na dáta)\" : t;\n    var h_str = isNaN(h) ? \"? (čakám na dáta)\" : h;\n\n    // Zostavenie odpovede pre Telegram\n    var sprava = \"📊 Aktuálny stav \" + zariadenie.toUpperCase() + \":\\n\\n\";\n    sprava += \"🌡️ Teplota: \" + t_str + \" °C\\n\";\n    sprava += \"💧 Vlhkosť: \" + h_str + \" %\\n\";\n    sprava += \"🛋️ Komfort: \" + stavKomfortu + \"\\n\\n\";\n    \n    if (zariadenie === 'wio' && p) {\n        sprava += \"💨 Prach: \" + p + \" µg/m³\";\n    } else if (zariadenie === 'rpi' && v) {\n        sprava += \"💨 TVOC: \" + v + \" ppm\";\n    }\n\n    return {\n        payload: {\n            chatId: chatId,\n            type: 'message',\n            content: sprava,\n            parse_mode: 'HTML' \n        }\n    };\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 100,
+        "wires": [
+            [
+                "987bf2b990056fc0"
+            ]
+        ]
+    },
+    {
+        "id": "4b68e9f2a1c3d5e7",
+        "type": "http in",
+        "z": "61ad0e0b83ea0491",
+        "name": "GET /api/locations",
+        "url": "/api/locations",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 130,
+        "y": 500,
+        "wires": [
+            [
+                "8c9d0e1f2a3b4c5d"
+            ]
+        ]
+    },
+    {
+        "id": "8c9d0e1f2a3b4c5d",
+        "type": "influxdb in",
+        "z": "61ad0e0b83ea0491",
+        "influxdb": "config_influxdb_smarthome",
+        "name": "Zisti lokality z DB",
+        "query": "SHOW TAG VALUES WITH KEY = \"location\"",
+        "rawOutput": false,
+        "precision": "",
+        "retentionPolicy": "",
+        "org": "organization",
+        "x": 360,
+        "y": 500,
+        "wires": [
+            [
+                "6a7b8c9d0e1f2a3b"
+            ]
+        ]
+    },
+    {
+        "id": "6a7b8c9d0e1f2a3b",
+        "type": "function",
+        "z": "61ad0e0b83ea0491",
+        "name": "Vyfiltruj len názvy",
+        "func": "// Vytiahneme názvy zariadení\nvar vsetkyZariadenia = msg.payload.map(function(zaznam) {\n    return zaznam.value;\n});\n\n// Odstránime duplikáty pomocou Set a vrátime späť ako pole\nmsg.payload = [...new Set(vsetkyZariadenia)];\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 580,
+        "y": 500,
+        "wires": [
+            [
+                "2a3b4c5d6e7f8a9b"
+            ]
+        ]
+    },
+    {
+        "id": "2a3b4c5d6e7f8a9b",
+        "type": "http response",
+        "z": "61ad0e0b83ea0491",
+        "name": "",
+        "statusCode": "",
+        "headers": {},
+        "x": 780,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "62692f5fe7151707",
+        "type": "http request",
+        "z": "61ad0e0b83ea0491",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://localhost:8000/api/set_limit",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 890,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "453613a903d61a6f",
+        "type": "function",
+        "z": "61ad0e0b83ea0491",
+        "name": "Spracovanie /pomoc",
+        "func": "var text = msg.payload.content;\nvar chatId = msg.payload.chatId;\n\n// Príkaz reaguje na /pomoc, /help aj /start\nif (text === \"/pomoc\" || text === \"/start\" || text === \"/help\") {\n    \n    var sprava = \"Nápoveda k príkazom botovi:\\n\\n\" +\n                 \"1. Aktuálny stav\\n\" +\n                 \"/stav rpi - zistí stav (teplota, vlhkosť, voc)\\n\" +\n                 \"/stav wio - zistí stav (teplota, vlhkosť, prach)\\n\\n\" +\n                 \n                 \"2. Nastavenie limitov\\n\" +\n                 \"/limit <zariadenie> <velicina> <od> <do>\\n\" +\n                 \"• Veličiny: teplota, vlhkost, prach, voc\\n\" +\n                 \"• Príklad: /limit rpi teplota 20 28\\n\\n\"; \n                 \n    return {\n        payload: {\n            chatId: chatId,\n            type: 'message',\n            content: sprava\n        }\n    };\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 40,
+        "wires": [
+            [
+                "987bf2b990056fc0"
+            ]
+        ]
+    },
+    {
+        "id": "48edadee86347be7",
+        "type": "telegram bot",
+        "botname": "Meteostanica bot",
+        "usernames": "",
+        "chatids": "",
+        "baseapiurl": "",
+        "testenvironment": false,
+        "updatemode": "polling",
+        "pollinterval": 300,
+        "usesocks": false,
+        "sockshost": "",
+        "socksprotocol": "socks5",
+        "socksport": 6667,
+        "socksusername": "anonymous",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbothost": "0.0.0.0",
+        "localbotport": 8443,
+        "publicbotport": 8443,
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
+    },
+    {
+        "id": "ccd2775b1a7d525b",
+        "type": "mqtt-broker",
+        "name": "localhost",
+        "broker": "192.168.1.163",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "config_influxdb_smarthome",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": "8086",
+        "protocol": "http",
+        "database": "smarthome",
+        "name": "Smarthome DB",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "1.x",
+        "url": "http://127.0.0.1:8086",
+        "timeout": "",
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "163f0d178d4ae71c",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-telegrambot": "17.1.3",
+            "node-red-contrib-influxdb": "0.7.0"
+        }
+    }
+]
