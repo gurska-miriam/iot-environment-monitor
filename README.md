@@ -1,7 +1,7 @@
 # Monitorovací systém kvality vnútorného prostredia v reálnom čase
 
 ## O projekte
-Tento projekt je zameraný na návrh a implementáciu modulárneho monitorovacieho systému určeného na sledovanie kvality vnútorného prostredia (teplota, vlhkosť, kvalita vzduchu) v reálnom čase. Systém poskytuje užívateľovi nástroj pre správu domáceho prostredia s potenciálom nasadenia v inteligentných domácnostiach (Smart Home).
+Tento projekt je zameraný na návrh a implementáciu modulárneho monitorovacieho systému určeného na sledovanie kvality vnútorného prostredia (teplota, vlhkosť, kvalita vzduchu) v reálnom čase. Systém poskytuje užívateľovi nástroj pre správu domáceho prostredia s potenciálom nasadenia v inteligentných domácnostiach.
 
 ## Architektúra systému
 Projekt využíva distribuovanú architektúru rozdelenú na aplikačnú, sieťovú a senzorovú vrstvu.
