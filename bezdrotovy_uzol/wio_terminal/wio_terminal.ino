@@ -10,7 +10,7 @@
 #define PIN_AOUT A0
 #define PIN_ILED D6
 
-// --- DOPLŇ SVOJE ÚDAJE SEM ---
+// --- KONFIGURÁCIA SIETE ---
 const char* ssid = "YOUR_WIFI_SSID";       
 const char* password = "YOUR_WIFI_PASSWORD";   
 const char* mqtt_server = "YOUR_MQTT_SERVER_IP"; 
