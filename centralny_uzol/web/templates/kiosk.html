@@ -1,1 +1,474 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kiosk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=DM+Sans:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* ─── DESIGN TOKENS ─────────────────────────────── */
+        :root {
+            --bg:          #05080c;
+            --surface:     #0c121d;
+            --surface-2:   #141e2e;
+            --border:      rgba(255,255,255,0.07);
+            
+            --temp:   #38d9f5;
+            --hum:    #3deba8;
+            --voc:    #c084fc;
+
+            --text:   #e8eef7;
+            --muted:  #5c708d;
+            --mono:   'JetBrains Mono', monospace;
+            --sans:   'DM Sans', sans-serif;
+        }
+
+        /* ─── RESET ─────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--text); width: 100vw; height: 100vh; overflow: hidden; display: flex; }
+
+        /* ─── SIDEBAR ──────────────── */
+        .sidebar {
+            width: 80px; 
+            background: var(--surface); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 25px 0; z-index: 10; gap: 20px; flex-shrink: 0;
+        }
+        .nav-btn { 
+            background: none; border: none; color: var(--muted); font-size: 24px; 
+            cursor: pointer; opacity: 0.5; transition: 0.2s; 
+            width: 100%; text-align: center; display: block; 
+        }
+        .nav-btn:hover { opacity: 0.8; }
+        
+        .nav-btn-main {
+            font-size: 42px !important; 
+            opacity: 0.95 !important;   
+            filter: drop-shadow(0 0 12px rgba(56, 217, 245, 0.4)); 
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .nav-btn-main:hover {
+            transform: scale(1.1); 
+            filter: drop-shadow(0 0 18px rgba(56, 217, 245, 0.7));
+        }
+
+        .spacer { flex: 1; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #3deba8; box-shadow: 0 0 10px #3deba8; }
+        .status-dot.error { background: #f56565; box-shadow: 0 0 10px #f56565; }
+
+        /* ─── MAIN LAYOUT ────────────────────────────────── */
+        .main { flex: 1; padding: 15px; display: flex; flex-direction: column; gap: 15px; min-width: 0; }
+
+        /* ─── TOPBAR ─────────────────────── */
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            min-height: 110px; background: var(--surface); border-radius: 20px;
+            padding: 15px 30px; border: 1px solid var(--border); flex-shrink: 0; gap: 20px;
+        }
+
+        .topbar-left { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+        
+        .clock { font-family: var(--mono); font-size: 2rem; font-weight: 700; color: #fff; line-height: 1; cursor: default; }
+        .clock .sec { display: none; font-size: 1.3rem; color: var(--muted); font-weight: 400; }
+        .clock:hover .sec { display: inline-block; }
+        
+        .date-str { font-family: var(--mono); font-size: 0.85rem; color: var(--temp); margin-top: 4px; }
+
+        .time-control-group { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+        #globalTimeRange {
+            background: var(--surface-2); color: var(--temp); border: 1px solid var(--border);
+            border-radius: 5px; font-family: var(--mono); font-size: 0.7rem; padding: 4px 8px;
+            outline: none; cursor: pointer;
+        }
+        #customTimeInputs { display: none; gap: 5px; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 5px; }
+        #customTimeInputs input { background: transparent; color: var(--text); border: none; font-size: 0.6rem; font-family: var(--mono); outline: none; }
+        .btn-apply-time { background: var(--temp); color: #000; border: none; border-radius: 3px; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; font-weight: bold; }
+
+        .weather-widget { display: flex; align-items: center; gap: 25px; flex: 1; justify-content: flex-end; min-width: 0; }
+        .weather-current { display: flex; align-items: center; gap: 18px; padding-right: 25px; border-right: 1px solid var(--border); flex-shrink: 0; }
+        .weather-icon-big { font-size: 3.7rem; filter: drop-shadow(0 0 18px rgba(255,255,255,0.15)); }
+        .weather-temp-out { display: flex; flex-direction: column; }
+        .val-group { display: flex; align-items: baseline; gap: 10px; }
+        .val-group .val { font-family: var(--mono); font-size: 2.3rem; font-weight: 700; color: #fff; }
+        .val-group .val-hum { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--hum); }
+        .weather-temp-out .label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+        .weather-forecast { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); -webkit-mask-image: linear-gradient(to right, transparent, black 2%, black 98%, transparent); }
+        .weather-forecast::-webkit-scrollbar { display: none; } 
+        .fore-day { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 45px; flex-shrink: 0; }
+        .fore-name { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); text-transform: uppercase; }
+        .fore-icon { font-size: 1.8rem; margin: 2px 0; }
+        .fore-temp { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; }
+        .fore-temp span { color: var(--muted); font-weight: 400; margin-left: 4px; font-size: 0.9rem; }
+        .divider { width: 1px; background: var(--border); margin: 0 5px; flex-shrink: 0; }
+
+        /* ─── GRID & SIDE-BY-SIDE CARDS ──────────────────── */
+        .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 15px; min-height: 0; }
+
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 16px; display: flex; flex-direction: row; gap: 20px; overflow: hidden; }
+        .card-side { display: flex; flex-direction: column; justify-content: center; width: 130px; flex-shrink: 0; }
+        .card-label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; line-height: 1.3; }
+        
+        .live-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+        .live-val { font-family: var(--mono); font-weight: 700; font-size: 2.8rem; line-height: 1; color: #fff; }
+        .live-unit { font-family: var(--mono); font-size: 1rem; color: var(--muted); }
+        
+        /* ─── ŠTÝLY PRE ROZMEDZIE TEPLOTY/VLHKOSTI ─── */
+        .range-text { font-family: var(--mono); font-size: 0.75rem; font-weight: 700; margin-top: 2px; white-space: nowrap; }
+        .c-temp .range-text { color: var(--temp); text-shadow: 0 0 10px rgba(56,217,245,0.2); }
+        .c-hum .range-text { color: var(--hum); text-shadow: 0 0 10px rgba(61,235,168,0.2); }
+        .c-voc .range-text { color: var(--voc); text-shadow: 0 0 10px rgba(192,132,252,0.2); }
+
+        .badge { font-family: var(--mono); font-size: 0.6rem; padding: 3px 12px; border-radius: 20px; text-transform: uppercase; font-weight: 700; margin-top: 5px; }
+        .badge.good { background: rgba(61,235,168,0.1); color: #3deba8; border: 1px solid rgba(61,235,168,0.2); }
+
+        /* ─── GRAFANA FRAMES & SHIELD ─────────────── */
+        .grafana-frame { flex: 1; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.03); background: #000; position: relative; }
+        .grafana-frame iframe { width: 100%; height: 100%; border: none; opacity: 0.9; }
+        .grafana-frame::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 30%; z-index: 5; background: transparent; cursor: default; }
+
+        .c-temp .live-val { color: var(--temp); text-shadow: 0 0 15px rgba(56,217,245,0.2); }
+        .c-hum .live-val { color: var(--hum); }
+        .c-voc .live-val { color: var(--voc); }
+
+        /* ─── KALENDÁR (Vycentrovaný) ────────────────── */
+        .c-tasks { padding: 20px !important; display: flex; justify-content: center; align-items: center; flex-direction: row !important; }
+        
+        .calendar-pane { width: 100%; max-width: 350px; display: flex; flex-direction: column; }
+        .cal-header { font-family: var(--mono); color: var(--temp); font-size: 1rem; text-align: center; margin-bottom: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 0.8rem; font-family: var(--mono); }
+        .cal-day-name { color: var(--muted); padding-bottom: 5px; font-size: 0.7rem; font-weight: bold; }
+        .cal-day { padding: 5px 0; border-radius: 6px; }
+        .cal-day.today { background: var(--temp); color: #000; font-weight: bold; box-shadow: 0 0 10px rgba(56,217,245,0.3); }
+
+        /* ─── MODAL (Nastavenia) ─────────────────────────── */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-content { background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; padding: 30px; width: 400px; color: var(--text); box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .modal-content h2 { margin-bottom: 20px; font-weight: 500; font-size: 1.4rem; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 25px; position: relative; }
+        .form-group label { font-size: 0.85rem; color: var(--muted); }
+        #citySearch { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 12px; border-radius: 10px; font-family: var(--sans); font-size: 1rem; outline: none; width: 100%; }
+        #citySearch:focus { border-color: var(--temp); }
+        .city-results { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-top: 5px; max-height: 200px; overflow-y: auto; display: none; position: absolute; top: 100%; left: 0; width: 100%; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .city-result-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .city-result-item:hover { background: rgba(255,255,255,0.05); color: var(--temp); }
+        .city-result-item:last-child { border-bottom: none; }
+        .btn-save { background: var(--temp); color: #000; border: none; padding: 12px; width: 100%; border-radius: 10px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+        .btn-save:hover { filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <a href="grafy.html" class="nav-btn nav-btn-main" style="text-decoration: none;" title="Historické grafy">📊</a>
+    
+    <div class="spacer"></div>
+    
+    <button class="nav-btn" onclick="toggleModal(true)" title="Nastavenia">⚙️</button>
+    
+    <div class="status-dot" id="statusDot" style="display: none;"></div>
+</nav>
+
+<main class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <div class="clock" id="clock">00:00<span class="sec">:00</span></div>
+            <div class="date-str" id="dateStr">---</div>
+
+            <div class="time-control-group">
+                <select id="globalTimeRange" onchange="handleTimeChange()">
+                    <option value="now-15m">Posledných 15 minút</option>
+                    <option value="now-1h">Posledná hodina</option>
+                    <option value="now-2h">Posledné 2 hodiny</option>
+                    <option value="now-3h" selected>Posledné 3 hodiny</option>
+                    <option value="now-24h">Posledných 24 hodín</option>
+                    <option value="now-2d">Posledné 2 dni</option>
+                    <option value="custom">Vlastný čas (Od - Do)...</option>
+                </select>
+                <div id="customTimeInputs">
+                    <input type="datetime-local" id="customTimeFrom">
+                    <span style="color: var(--muted); font-size: 0.6rem;">-</span>
+                    <input type="datetime-local" id="customTimeTo">
+                    <button class="btn-apply-time" onclick="applyCustomTime()">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="weather-widget">
+            <div class="weather-current">
+                <div class="weather-icon-big" id="out-icon">--</div>
+                <div class="weather-temp-out">
+                    <div class="val-group">
+                        <span class="val" id="out-temp">--°C</span>
+                        <span class="val-hum" id="out-hum">--%</span>
+                    </div>
+                    <span class="label">Exteriér (<span id="loc-label">--</span>)</span>
+                </div>
+            </div>
+            <div class="weather-forecast" id="forecast-cont"></div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card c-temp">
+            <div class="card-side">
+                <div class="card-label">Teplota<br>Izba</div>
+                <div class="live-wrap">
+                    <span class="live-val" id="val-temp">--</span>
+                    <span class="live-unit">°C</span>
+                    <span class="range-text" id="range-temp">20 - 28 °C</span>
+                </div>
+            </div>
+            <div class="grafana-frame"><iframe src="http://localhost:3000/d-solo/adc92k8/iot-monitoring?orgId=1&from=now-3h&to=now&timezone=browser&var-location=$__all&var-measurement=air_quality&var-field=dust_ug_m3&refresh=5s&panelId=panel-1&theme=dark&kiosk" width="100%" height="100%" frameborder="0"></iframe></div>
+        </div>
+
+        <div class="card c-hum">
+            <div class="card-side">
+                <div class="card-label">Vlhkosť<br>Vzduchu</div>
+                <div class="live-wrap">
+                    <span class="live-val" id="val-hum">--</span>
+                    <span class="live-unit">%</span>
+                    <span class="range-text" id="range-hum">40 - 60 %</span>
+                </div>
+            </div>
+            <div class="grafana-frame"><iframe src="http://localhost:3000/d-solo/adc92k8/iot-monitoring?orgId=1&from=now-3h&to=now&timezone=browser&var-location=$__all&var-measurement=air_quality&var-field=dust_ug_m3&refresh=5s&panelId=panel-4&theme=dark&kiosk" width="100%" height="100%" frameborder="0"></iframe></div>
+        </div>
+
+        <div class="card c-tasks">
+            <div class="calendar-pane">
+                <div class="cal-header" id="cal-month-year">--</div>
+                <div class="cal-grid">
+                    <div class="cal-day-name">Po</div><div class="cal-day-name">Ut</div><div class="cal-day-name">St</div>
+                    <div class="cal-day-name">Št</div><div class="cal-day-name">Pi</div><div class="cal-day-name">So</div><div class="cal-day-name">Ne</div>
+                </div>
+                <div class="cal-grid" id="cal-days-grid"></div>
+            </div>
+        </div>
+
+        <div class="card c-voc">
+            <div class="card-side">
+                <div class="card-label">TVOC<br>Index</div>
+                <div class="live-wrap">
+                    <span class="live-val" id="val-voc">--</span>
+                    <span class="live-unit">PPM</span>
+                    <span class="range-text" id="range-voc">0 - 500 PPM</span>
+                    <span class="badge good" id="badge-voc">OK</span>
+                </div>
+            </div>
+            <div class="grafana-frame"><iframe src="http://localhost:3000/d-solo/adc92k8/iot-monitoring?orgId=1&from=now-3h&to=now&timezone=browser&var-location=$__all&var-measurement=air_quality&var-field=dust_ug_m3&refresh=5s&panelId=panel-6&theme=dark&kiosk" width="100%" height="100%" frameborder="0"></iframe></div>
+        </div>
+    </div>
+</main>
+
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+        <h2>⚙️ Nastavenia Kiosku</h2>
+        <div class="form-group">
+            <label>Poloha pre počasie (Vyhľadať mesto):</label>
+            <input type="text" id="citySearch" placeholder="Zadaj názov mesta..." autocomplete="off">
+            <div id="cityResults" class="city-results"></div>
+        </div>
+        <button class="btn-save" onclick="saveSettings()">Uložiť nastavenia</button>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// KALENDÁR LOGIKA
+// ==========================================
+
+function renderCalendar() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const today = now.getDate();
+
+    const firstDay = new Date(year, month, 1).getDay(); 
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    let startDay = firstDay - 1;
+    if (startDay === -1) startDay = 6;
+
+    const monthNames = ["Január", "Február", "Marec", "Apríl", "Máj", "Jún", "Júl", "August", "September", "Október", "November", "December"];
+    document.getElementById('cal-month-year').textContent = `${monthNames[month]} ${year}`;
+
+    const grid = document.getElementById('cal-days-grid');
+    grid.innerHTML = '';
+
+    for (let i = 0; i < startDay; i++) {
+        grid.innerHTML += `<div class="cal-day empty"></div>`;
+    }
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+        const isToday = d === today ? 'today' : '';
+        grid.innerHTML += `<div class="cal-day ${isToday}">${d}</div>`;
+    }
+}
+
+// ==========================================
+// KIOSK LOGIKA (Počasie, Senzory, Limity...)
+// ==========================================
+
+const API_URL = 'http://localhost:8000/api/sensors';
+let currentLat = 48.1482; let currentLon = 17.1067; let currentCity = "Bratislava";
+let tempLat = currentLat; let tempLon = currentLon; let tempCity = currentCity;
+
+function loadSettings() {
+    const saved = localStorage.getItem('kiosk_weather_loc');
+    if (saved) {
+        const [lat, lon, city] = saved.split(',');
+        currentLat = parseFloat(lat); currentLon = parseFloat(lon); currentCity = city;
+    }
+    document.getElementById('loc-label').textContent = currentCity;
+}
+
+function toggleModal(show) {
+    document.getElementById('settingsModal').classList.toggle('active', show);
+    if(show) {
+        document.getElementById('citySearch').value = currentCity;
+        tempLat = currentLat; tempLon = currentLon; tempCity = currentCity;
+        document.getElementById('cityResults').style.display = 'none';
+    }
+}
+
+function saveSettings() {
+    currentLat = tempLat; currentLon = tempLon; currentCity = tempCity;
+    localStorage.setItem('kiosk_weather_loc', `${currentLat},${currentLon},${currentCity}`);
+    toggleModal(false); loadSettings(); fetchWeather(); 
+}
+
+let searchTimeout;
+const searchInput = document.getElementById('citySearch');
+const resultsDiv = document.getElementById('cityResults');
+
+searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    const query = e.target.value;
+    if(query.length < 2) { resultsDiv.style.display = 'none'; return; }
+    searchTimeout = setTimeout(() => searchCity(query), 500);
+});
+
+async function searchCity(query) {
+    try {
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=sk&format=json`);
+        const data = await res.json();
+        resultsDiv.innerHTML = '';
+        if(data.results && data.results.length > 0) {
+            data.results.forEach(city => {
+                const div = document.createElement('div'); div.className = 'city-result-item';
+                div.textContent = `${city.name}${city.admin1 ? `, ${city.admin1}` : ''} (${city.country})`;
+                div.onclick = () => { searchInput.value = city.name; tempLat = city.latitude; tempLon = city.longitude; tempCity = city.name; resultsDiv.style.display = 'none'; };
+                resultsDiv.appendChild(div);
+            });
+            resultsDiv.style.display = 'block';
+        } else { resultsDiv.style.display = 'none'; }
+    } catch(e) {}
+}
+
+function getWeatherEmoji(code, isDay) {
+    if (code <= 1) return isDay ? '☀️' : '✨'; if (code <= 3) return isDay ? '🌤️' : '☁️'; 
+    if (code <= 48) return '🌫️'; if (code <= 55) return '🌦️'; if (code <= 65) return '🌧️'; 
+    if (code <= 77) return '❄️'; if (code <= 82) return '⛈️'; return '🌩️';
+}
+
+async function fetchWeather() {
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&current=temperature_2m,relative_humidity_2m,weather_code,is_day&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`);
+        const data = await res.json();
+        document.getElementById('out-temp').textContent = Math.round(data.current.temperature_2m) + '°C';
+        document.getElementById('out-hum').textContent = Math.round(data.current.relative_humidity_2m) + '%';
+        document.getElementById('out-icon').textContent = getWeatherEmoji(data.current.weather_code, data.current.is_day);
+
+        const container = document.getElementById('forecast-cont'); container.innerHTML = '';
+        let startIndex = data.hourly.time.findIndex(t => t >= data.current.time);
+        if (startIndex === -1) startIndex = 0;
+
+        for (let i = 1; i <= 6; i++) { 
+            let idx = startIndex + i; if (idx >= data.hourly.time.length) break; 
+            let hourStr = String(new Date(data.hourly.time[idx]).getHours()).padStart(2, '0') + ':00';
+            let div = document.createElement('div'); div.className = 'fore-day';
+            div.innerHTML = `<span class="fore-name">${hourStr}</span><span class="fore-icon">${getWeatherEmoji(data.hourly.weather_code[idx], data.hourly.is_day[idx])}</span><span class="fore-temp">${Math.round(data.hourly.temperature_2m[idx])}°</span>`;
+            container.appendChild(div);
+        }
+
+        let divLine = document.createElement('div'); divLine.className = 'divider'; container.appendChild(divLine);
+
+        for (let i = 1; i <= 2; i++) {
+            let div = document.createElement('div'); div.className = 'fore-day';
+            let dayLabel = 'Zajtra';
+            if (i === 2) {
+                let futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 2);
+                let dayName = futureDate.toLocaleDateString('sk-SK', { weekday: 'long' });
+                dayLabel = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+            }
+            div.innerHTML = `<span class="fore-name">${dayLabel}</span><span class="fore-icon">${getWeatherEmoji(data.daily.weather_code[i], 1)}</span><span class="fore-temp">${Math.round(data.daily.temperature_2m_max[i])}°<span>${Math.round(data.daily.temperature_2m_min[i])}°</span></span>`;
+            container.appendChild(div);
+        }
+    } catch (e) {}
+}
+
+async function fetchSensors() {
+    try {
+        const res = await fetch(API_URL);
+        const d = await res.json();
+        document.getElementById('statusDot').className = 'status-dot';
+        
+        // Zápis aktuálnych hodnôt a dynamických limitov
+        document.getElementById('val-temp').textContent = d.temperature ?? '--';
+        document.getElementById('range-temp').textContent = (d.limit_teplota ?? '20 - 28') + ' °C';
+        
+        document.getElementById('val-hum').textContent = d.humidity ?? '--';
+        document.getElementById('range-hum').textContent = (d.limit_vlhkost ?? '40 - 60') + ' %';
+        
+        document.getElementById('val-voc').textContent = d.voc_ppm ?? '--';
+        document.getElementById('range-voc').textContent = (d.limit_voc ?? '0 - 500') + ' PPM';
+        document.getElementById('badge-voc').textContent = d.voc_ppm < 500 ? 'Čistý' : 'Znečistený';
+        
+    } catch (e) { document.getElementById('statusDot').className = 'status-dot error'; }
+}
+
+function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').innerHTML = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}<span class="sec">:${String(now.getSeconds()).padStart(2, '0')}</span>`;
+    document.getElementById('dateStr').textContent = now.toLocaleDateString('sk-SK', {weekday:'long', day:'numeric', month:'long'});
+}
+
+function handleTimeChange() {
+    const selector = document.getElementById('globalTimeRange');
+    const customInputs = document.getElementById('customTimeInputs');
+    if (selector.value === 'custom') { customInputs.style.display = 'flex'; } 
+    else { customInputs.style.display = 'none'; updateGrafanaFrames(selector.value, 'now'); }
+}
+
+function applyCustomTime() {
+    const fVal = document.getElementById('customTimeFrom').value;
+    const tVal = document.getElementById('customTimeTo').value;
+    if (!fVal || !tVal) { alert("Vyplňte oba časy (Od aj Do)."); return; }
+    const fMs = new Date(fVal).getTime(), tMs = new Date(tVal).getTime();
+    if (fMs >= tMs) { alert("Čas 'Od' musí byť skôr ako 'Do'."); return; }
+    updateGrafanaFrames(fMs, tMs);
+}
+
+function updateGrafanaFrames(fromTime, toTime) {
+    document.querySelectorAll('.grafana-frame iframe').forEach(iframe => {
+        try {
+            if (iframe.src && iframe.src.includes('http')) {
+                let url = new URL(iframe.src); url.searchParams.set('from', fromTime); url.searchParams.set('to', toTime);
+                iframe.src = url.toString();
+            }
+        } catch (e) {}
+    });
+}
+
+loadSettings();
+setInterval(updateClock, 1000); updateClock();
+setInterval(fetchSensors, 5000); fetchSensors();
+setInterval(fetchWeather, 30 * 60 * 1000); fetchWeather();
+
+renderCalendar();
+</script>
+</body>
+</html>
 
