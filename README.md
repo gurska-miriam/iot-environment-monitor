@@ -38,3 +38,18 @@ Projekt využíva distribuovanú architektúru rozdelenú na aplikačnú, sieťo
 * `kiosk.html` – Frontend rozhranie pre domáci kiosk obsahujúce hodiny, kalendár, predpoveď počasia a živé dáta.
 * `grafy.html` – Webová stránka umožňujúca dynamické pridávanie, kombinovanie a časové filtrovanie historických grafov z Grafany.
 * `flows.json` – Kompletný exportovaný tok (flow) pre platformu Node-RED obsahujúci spracovanie Telegram správ a kontrolu alarmov.
+
+## Inštalácia a spustenie
+
+### Príprava prostredia (Python)
+Odporúča sa spúšťať projekt v izolovanom virtuálnom prostredí (`venv`).
+
+Vytvorenie a aktivácia virtuálneho prostredia:
+   ```bash
+   python -m venv venv
+   
+   # Pre Linux/macOS (Raspberry Pi):
+   source venv/bin/activate
+   
+   # Pre Windows:
+   venv\Scripts\activate
