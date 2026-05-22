@@ -59,14 +59,12 @@ Projekt využíva distribuovanú architektúru rozdelenú na senzorovú, sieťov
 smart-home-monitor/
 │
 ├── README.md
-├── .gitignore
 │
 ├── centralny_uzol/
 │   ├── main.py               – Centrálny skript: čítanie senzorov, MQTT odber, zápis do InfluxDB
 │   ├── api.py                – FastAPI backend: REST API endpointy a správa limitov
 │   ├── mq135.py              – Obsluha senzora MQ-135 s teplotno-vlhkostnou korekciou
 │   ├── dht22.py              – Čítanie teploty a vlhkosti zo senzora DHT22
-│   ├── requirements.txt      – Zoznam Python závislostí
 │   │
 │   └── web/
 │       └── sablony/
@@ -75,7 +73,7 @@ smart-home-monitor/
 │
 ├── bezdrotovy_uzol/
 │   └── wio_terminal/
-│       └── wio_terminal.ino  – Arduino sketch pre Wio Terminal (DHT11 + senzor prachu)
+│       └── wio_terminal.ino  – Kód pre Wio Terminal (DHT11 + senzor prachu)
 │
 └── node_red/
     └── flows.json            – Exportovaný tok pre Node-RED
@@ -118,7 +116,7 @@ const char* mqtt_server  = "YOUR_MQTT_SERVER_IP";  // IP adresa Raspberry Pi v l
 ```
 
 ### 2. `node_red/flows.json` — Telegram Chat ID
-Po importe súboru `flows.json` do prostredia Node-RED je potrebné vyhľadať všetky výskyty reťazca `YOUR_CHAT_ID` a nahradiť ich vlastným identifikátorom Telegram účtu. Chat ID je možné zistiť prostredníctvom bota [@userinfobot](https://t.me/userinfobot).
+Po importe súboru `flows.json` do prostredia Node-RED je potrebné vyhľadať všetky výskyty reťazca `YOUR_CHAT_ID` a nahradiť ich vlastným identifikátorom Telegram účtu. Chat ID je možné zistiť prostredníctvom bota.
 
 ### 3. `kiosk.html` a `grafy.html` — identifikátor Grafana dashboardu
 V oboch súboroch je potrebné nahradiť zástupnú hodnotu skutočným identifikátorom dashboardu vytvoreného v Grafane:
