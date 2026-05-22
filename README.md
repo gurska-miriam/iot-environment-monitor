@@ -139,7 +139,6 @@ cd smart-home-monitor
 ```bash
 python -m venv venv
 source venv/bin/activate        # Linux / Raspberry Pi OS
-pip install -r centralny_uzol/requirements.txt
 ```
 
 ### 3. Inštalácia a spustenie služieb
