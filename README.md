@@ -132,7 +132,7 @@ Identifikátor dashboardu je súčasťou URL adresy po jeho otvorení v prostred
 ### 1. Klonovanie repozitára
 ```bash
 git clone https://github.com/YOUR_USERNAME/iot-environment-monitor.git
-cd smart-home-monitor
+cd iot-environment-monitor
 ```
 
 ### 2. Príprava virtuálneho prostredia (Python)
