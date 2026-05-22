@@ -56,7 +56,7 @@ Projekt využíva distribuovanú architektúru rozdelenú na senzorovú, sieťov
 ## Štruktúra repozitára
 
 ```
-smart-home-monitor/
+iot-environment-monitor/
 │
 ├── README.md
 │
@@ -131,7 +131,7 @@ Identifikátor dashboardu je súčasťou URL adresy po jeho otvorení v prostred
 
 ### 1. Klonovanie repozitára
 ```bash
-git clone https://github.com/YOUR_USERNAME/smart-home-monitor.git
+git clone https://github.com/YOUR_USERNAME/iot-environment-monitor.git
 cd smart-home-monitor
 ```
 
